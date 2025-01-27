@@ -9,13 +9,19 @@
 // map values inside object using mapping func.
 import chai from 'chai'
 
-export function objValues (obj: { [key: string]: any }, mapFunc: (val: any, key?: string) => any): any {
+export const objValues = (
+  obj: { [key: string]: any },
+  mapFunc: (val: any, key?: string) => any,
+): any => {
   return Object.keys(obj)
-    .filter(key => key.match(/^[\d_]/) == null)
-    .reduce((set, key) => ({
-      ...set,
-      [key]: mapFunc(obj[key], key)
-    }), {})
+    .filter((key) => key.match(/^[\d_]/) == null)
+    .reduce(
+      (set, key) => ({
+        ...set,
+        [key]: mapFunc(obj[key], key),
+      }),
+      {},
+    )
 }
 
 /**
@@ -26,7 +32,7 @@ export function objValues (obj: { [key: string]: any }, mapFunc: (val: any, key?
  * - recursively handle inner members of object, arrays.
  * - attempt toString. but if no normal value, recurse into fields.
  */
-export function cleanValue (val: any): any {
+export const cleanValue = (val: any): any => {
   if (val == null) return val
   if (Array.isArray(val)) {
     if (val.length * 2 === Object.keys(val).length) {
@@ -34,11 +40,13 @@ export function cleanValue (val: any): any {
       return objValues(val, cleanValue)
     }
     // its a plain array. map each array element
-    return val.map(val1 => cleanValue(val1))
+    return val.map((val1) => cleanValue(val1))
   }
 
   const str = val.toString()
-  if (str !== '[object Object]') { return str }
+  if (str !== '[object Object]') {
+    return str
+  }
 
   return objValues(val, cleanValue)
 }

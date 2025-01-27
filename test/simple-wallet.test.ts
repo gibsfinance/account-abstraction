@@ -12,7 +12,7 @@ import {
   TestCounter,
   TestCounter__factory,
   TestUtil,
-  TestUtil__factory
+  TestUtil__factory,
 } from '../typechain'
 import {
   HashZero,
@@ -22,12 +22,17 @@ import {
   createAddress,
   deployEntryPoint,
   getBalance,
-  isDeployed
+  isDeployed,
 } from './testutils'
-import { fillUserOpDefaults, getUserOpHash, encodeUserOp, signUserOp, packUserOp } from './UserOp'
+import {
+  fillUserOpDefaults,
+  getUserOpHash,
+  encodeUserOp,
+  signUserOp,
+  packUserOp,
+} from './UserOp'
 import { parseEther } from 'ethers/lib/utils'
 import { UserOperation } from './UserOperation'
-import { JsonRpcProvider } from '@ethersproject/providers'
 
 describe('SimpleAccount', function () {
   let entryPoint: EntryPoint
@@ -46,14 +51,29 @@ describe('SimpleAccount', function () {
   })
 
   it('owner should be able to call transfer', async () => {
-    const { proxy: account } = await createAccount(ethers.provider.getSigner(), accounts[0], entryPoint.address)
-    await ethersSigner.sendTransaction({ from: accounts[0], to: account.address, value: parseEther('2') })
+    const { proxy: account } = await createAccount(
+      ethers.provider.getSigner(),
+      accounts[0],
+      entryPoint.address,
+    )
+    await ethersSigner.sendTransaction({
+      from: accounts[0],
+      to: account.address,
+      value: parseEther('2'),
+    })
     await account.execute(accounts[2], ONE_ETH, '0x')
   })
   it('other account should not be able to call transfer', async () => {
-    const { proxy: account } = await createAccount(ethers.provider.getSigner(), accounts[0], entryPoint.address)
-    await expect(account.connect(ethers.provider.getSigner(1)).execute(accounts[2], ONE_ETH, '0x'))
-      .to.be.revertedWith('account: not Owner or EntryPoint')
+    const { proxy: account } = await createAccount(
+      ethers.provider.getSigner(),
+      accounts[0],
+      entryPoint.address,
+    )
+    await expect(
+      account
+        .connect(ethers.provider.getSigner(1))
+        .execute(accounts[2], ONE_ETH, '0x'),
+    ).to.be.revertedWith('account: not Owner or EntryPoint')
   })
 
   it('should pack in js the same as solidity', async () => {
@@ -67,39 +87,68 @@ describe('SimpleAccount', function () {
     let account: SimpleAccount
     let counter: TestCounter
     before(async () => {
-      ({ proxy: account } = await createAccount(ethersSigner, await ethersSigner.getAddress(), entryPoint.address))
+      ;({ proxy: account } = await createAccount(
+        ethersSigner,
+        await ethersSigner.getAddress(),
+        entryPoint.address,
+      ))
       counter = await new TestCounter__factory(ethersSigner).deploy()
     })
 
     it('should allow zero value array', async () => {
-      const counterJustEmit = await counter.populateTransaction.justemit().then(tx => tx.data!)
-      const rcpt = await account.executeBatch(
-        [counter.address, counter.address],
-        [],
-        [counterJustEmit, counterJustEmit]
-      ).then(async t => await t.wait())
-      const targetLogs = await counter.queryFilter(counter.filters.CalledFrom(), rcpt.blockHash)
+      const counterJustEmit = await counter.populateTransaction
+        .justemit()
+        .then((tx) => tx.data!)
+      const rcpt = await account
+        .executeBatch(
+          [counter.address, counter.address],
+          [],
+          [counterJustEmit, counterJustEmit],
+        )
+        .then(async (t) => await t.wait())
+      const targetLogs = await counter.queryFilter(
+        counter.filters.CalledFrom(),
+        rcpt.blockHash,
+      )
       expect(targetLogs.length).to.eq(2)
     })
 
     it('should allow transfer value', async () => {
-      const counterJustEmit = await counter.populateTransaction.justemit().then(tx => tx.data!)
+      const counterJustEmit = await counter.populateTransaction
+        .justemit()
+        .then((tx) => tx.data!)
       const target = createAddress()
-      await ethersSigner.sendTransaction({ from: accounts[0], to: account.address, value: parseEther('2') })
-      const rcpt = await account.executeBatch(
-        [target, counter.address],
-        [ONE_ETH, 0],
-        ['0x', counterJustEmit]
-      ).then(async t => await t.wait())
+      await ethersSigner.sendTransaction({
+        from: accounts[0],
+        to: account.address,
+        value: parseEther('2'),
+      })
+      const rcpt = await account
+        .executeBatch(
+          [target, counter.address],
+          [ONE_ETH, 0],
+          ['0x', counterJustEmit],
+        )
+        .then(async (t) => await t.wait())
       expect(await ethers.provider.getBalance(target)).to.equal(ONE_ETH)
-      const targetLogs = await counter.queryFilter(counter.filters.CalledFrom(), rcpt.blockHash)
+      const targetLogs = await counter.queryFilter(
+        counter.filters.CalledFrom(),
+        rcpt.blockHash,
+      )
       expect(targetLogs.length).to.eq(1)
     })
 
     it('should fail with wrong array length', async () => {
-      const counterJustEmit = await counter.populateTransaction.justemit().then(tx => tx.data!)
-      await expect(account.executeBatch([counter.address, counter.address], [0], [counterJustEmit, counterJustEmit]))
-        .to.be.revertedWith('wrong array lengths')
+      const counterJustEmit = await counter.populateTransaction
+        .justemit()
+        .then((tx) => tx.data!)
+      await expect(
+        account.executeBatch(
+          [counter.address, counter.address],
+          [0],
+          [counterJustEmit, counterJustEmit],
+        ),
+      ).to.be.revertedWith('wrong array lengths')
     })
   })
 
@@ -119,22 +168,38 @@ describe('SimpleAccount', function () {
       const epAsSigner = await ethers.getSigner(entryPointEoa)
 
       // cant use "SimpleAccountFactory", since it attempts to increment nonce first
-      const implementation = await new SimpleAccount__factory(ethersSigner).deploy(entryPointEoa)
-      const proxy = await new ERC1967Proxy__factory(ethersSigner).deploy(implementation.address, '0x')
+      const implementation = await new SimpleAccount__factory(
+        ethersSigner,
+      ).deploy(entryPointEoa)
+      const proxy = await new ERC1967Proxy__factory(ethersSigner).deploy(
+        implementation.address,
+        '0x',
+      )
       account = SimpleAccount__factory.connect(proxy.address, epAsSigner)
 
-      await ethersSigner.sendTransaction({ from: accounts[0], to: account.address, value: parseEther('0.2') })
+      await ethersSigner.sendTransaction({
+        from: accounts[0],
+        to: account.address,
+        value: parseEther('0.2'),
+      })
       const callGasLimit = 200000
       const verificationGasLimit = 100000
       const maxFeePerGas = 3e9
-      const chainId = await ethers.provider.getNetwork().then(net => net.chainId)
+      const chainId = await ethers.provider
+        .getNetwork()
+        .then((net) => net.chainId)
 
-      userOp = signUserOp(fillUserOpDefaults({
-        sender: account.address,
-        callGasLimit,
-        verificationGasLimit,
-        maxFeePerGas
-      }), accountOwner, entryPointEoa, chainId)
+      userOp = signUserOp(
+        fillUserOpDefaults({
+          sender: account.address,
+          callGasLimit,
+          verificationGasLimit,
+          maxFeePerGas,
+        }),
+        accountOwner,
+        entryPointEoa,
+        chainId,
+      )
 
       userOpHash = await getUserOpHash(userOp, entryPointEoa, chainId)
 
@@ -142,7 +207,12 @@ describe('SimpleAccount', function () {
 
       preBalance = await getBalance(account.address)
       const packedOp = packUserOp(userOp)
-      const ret = await account.validateUserOp(packedOp, userOpHash, expectedPay, { gasPrice: actualGasPrice })
+      const ret = await account.validateUserOp(
+        packedOp,
+        userOpHash,
+        expectedPay,
+        { gasPrice: actualGasPrice },
+      )
       await ret.wait()
     })
 
@@ -154,7 +224,11 @@ describe('SimpleAccount', function () {
     it('should return NO_SIG_VALIDATION on wrong signature', async () => {
       const userOpHash = HashZero
       const packedOp = packUserOp(userOp)
-      const deadline = await account.callStatic.validateUserOp({ ...packedOp, nonce: 1 }, userOpHash, 0)
+      const deadline = await account.callStatic.validateUserOp(
+        { ...packedOp, nonce: 1 },
+        userOpHash,
+        0,
+      )
       expect(deadline).to.eq(1)
     })
   })
@@ -162,14 +236,22 @@ describe('SimpleAccount', function () {
   context('SimpleAccountFactory', () => {
     it('should reject calls coming from any address that is not SenderCreator', async () => {
       const ownerAddr = createAddress()
-      let deployer = await new SimpleAccountFactory__factory(ethersSigner).deploy(entryPoint.address)
-      await expect(deployer.createAccount(ownerAddr, 1234))
-        .to.be.revertedWith('only callable from SenderCreator')
+      let deployer = await new SimpleAccountFactory__factory(
+        ethersSigner,
+      ).deploy(entryPoint.address)
+      await expect(deployer.createAccount(ownerAddr, 1234)).to.be.revertedWith(
+        'only callable from SenderCreator',
+      )
 
       // switch deployer contract to an impersonating signer
       const senderCreator = await entryPoint.senderCreator()
-      await (ethersSigner.provider as JsonRpcProvider).send('hardhat_setBalance', [senderCreator, toHex(100e18)])
-      const senderCreatorSigner = await ethers.getImpersonatedSigner(senderCreator)
+      await ethersSigner.provider.send('hardhat_setBalance', [
+        senderCreator,
+        toHex(100e18),
+      ])
+      const senderCreatorSigner = await ethers.getImpersonatedSigner(
+        senderCreator,
+      )
       deployer = deployer.connect(senderCreatorSigner)
 
       const target = await deployer.callStatic.createAccount(ownerAddr, 1234)

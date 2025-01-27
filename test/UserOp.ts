@@ -1,23 +1,26 @@
 import {
   arrayify,
-  defaultAbiCoder, hexConcat,
+  defaultAbiCoder,
+  hexConcat,
   hexDataSlice,
-  keccak256
+  keccak256,
 } from 'ethers/lib/utils'
 import { BigNumber, Contract, Signer, Wallet } from 'ethers'
-import { TypedDataSigner, TypedDataDomain, TypedDataField } from '@ethersproject/abstract-signer'
+import {
+  TypedDataSigner,
+  TypedDataDomain,
+  TypedDataField,
+} from '@ethersproject/abstract-signer'
 import {
   AddressZero,
   callDataCost,
   decodeRevertReason,
   packAccountGasLimits,
   packPaymasterData,
-  rethrow
+  rethrow,
 } from './testutils'
 import { ecsign, toRpcSig } from 'ethereumjs-util'
-import {
-  EntryPoint, EntryPointSimulations__factory
-} from '../typechain'
+import { EntryPoint, EntryPointSimulations__factory } from '../typechain'
 import { PackedUserOperation, UserOperation } from './UserOperation'
 import { Create2Factory } from '../src/Create2Factory'
 import { TransactionRequest } from '@ethersproject/abstract-provider'
@@ -31,14 +34,29 @@ const DOMAIN_NAME = 'ERC4337'
 const DOMAIN_VERSION = '1'
 
 // Matched to UserOperationLib.sol:
-const PACKED_USEROP_TYPEHASH = keccak256(Buffer.from('PackedUserOperation(address sender,uint256 nonce,bytes initCode,bytes callData,bytes32 accountGasLimits,uint256 preVerificationGas,bytes32 gasFees,bytes paymasterAndData)'))
+const PACKED_USEROP_TYPEHASH = keccak256(
+  Buffer.from(
+    'PackedUserOperation(address sender,uint256 nonce,bytes initCode,bytes callData,bytes32 accountGasLimits,uint256 preVerificationGas,bytes32 gasFees,bytes paymasterAndData)',
+  ),
+)
 
-export function packUserOp (userOp: UserOperation): PackedUserOperation {
-  const accountGasLimits = packAccountGasLimits(userOp.verificationGasLimit, userOp.callGasLimit)
-  const gasFees = packAccountGasLimits(userOp.maxPriorityFeePerGas, userOp.maxFeePerGas)
+export const packUserOp = (userOp: UserOperation): PackedUserOperation => {
+  const accountGasLimits = packAccountGasLimits(
+    userOp.verificationGasLimit,
+    userOp.callGasLimit,
+  )
+  const gasFees = packAccountGasLimits(
+    userOp.maxPriorityFeePerGas,
+    userOp.maxFeePerGas,
+  )
   let paymasterAndData = '0x'
   if (userOp.paymaster?.length >= 20 && userOp.paymaster !== AddressZero) {
-    paymasterAndData = packPaymasterData(userOp.paymaster as string, userOp.paymasterVerificationGasLimit, userOp.paymasterPostOpGasLimit, userOp.paymasterData as string)
+    paymasterAndData = packPaymasterData(
+      userOp.paymaster as string,
+      userOp.paymasterVerificationGasLimit,
+      userOp.paymasterPostOpGasLimit,
+      userOp.paymasterData as string,
+    )
   }
   return {
     sender: userOp.sender,
@@ -49,42 +67,83 @@ export function packUserOp (userOp: UserOperation): PackedUserOperation {
     preVerificationGas: userOp.preVerificationGas,
     gasFees,
     paymasterAndData,
-    signature: userOp.signature
+    signature: userOp.signature,
   }
 }
-export function encodeUserOp (userOp: UserOperation, forSignature = true): string {
+export const encodeUserOp = (
+  userOp: UserOperation,
+  forSignature = true,
+): string => {
   const packedUserOp = packUserOp(userOp)
   if (forSignature) {
     return defaultAbiCoder.encode(
-      ['bytes32',
-        'address', 'uint256', 'bytes32', 'bytes32',
-        'bytes32', 'uint256', 'bytes32',
-        'bytes32'],
-      [PACKED_USEROP_TYPEHASH,
-        packedUserOp.sender, packedUserOp.nonce, keccak256(packedUserOp.initCode), keccak256(packedUserOp.callData),
-        packedUserOp.accountGasLimits, packedUserOp.preVerificationGas, packedUserOp.gasFees,
-        keccak256(packedUserOp.paymasterAndData)])
+      [
+        'bytes32',
+        'address',
+        'uint256',
+        'bytes32',
+        'bytes32',
+        'bytes32',
+        'uint256',
+        'bytes32',
+        'bytes32',
+      ],
+      [
+        PACKED_USEROP_TYPEHASH,
+        packedUserOp.sender,
+        packedUserOp.nonce,
+        keccak256(packedUserOp.initCode),
+        keccak256(packedUserOp.callData),
+        packedUserOp.accountGasLimits,
+        packedUserOp.preVerificationGas,
+        packedUserOp.gasFees,
+        keccak256(packedUserOp.paymasterAndData),
+      ],
+    )
   } else {
     // for the purpose of calculating gas cost encode also signature (and no keccak of bytes)
     return defaultAbiCoder.encode(
-      ['bytes32',
-        'address', 'uint256', 'bytes', 'bytes',
-        'bytes32', 'uint256', 'bytes32',
-        'bytes', 'bytes'],
-      [PACKED_USEROP_TYPEHASH,
-        packedUserOp.sender, packedUserOp.nonce, packedUserOp.initCode, packedUserOp.callData,
-        packedUserOp.accountGasLimits, packedUserOp.preVerificationGas, packedUserOp.gasFees,
-        packedUserOp.paymasterAndData, packedUserOp.signature])
+      [
+        'bytes32',
+        'address',
+        'uint256',
+        'bytes',
+        'bytes',
+        'bytes32',
+        'uint256',
+        'bytes32',
+        'bytes',
+        'bytes',
+      ],
+      [
+        PACKED_USEROP_TYPEHASH,
+        packedUserOp.sender,
+        packedUserOp.nonce,
+        packedUserOp.initCode,
+        packedUserOp.callData,
+        packedUserOp.accountGasLimits,
+        packedUserOp.preVerificationGas,
+        packedUserOp.gasFees,
+        packedUserOp.paymasterAndData,
+        packedUserOp.signature,
+      ],
+    )
   }
 }
 
-export function getUserOpHash (op: UserOperation, entryPoint: string, chainId: number): string {
+export const getUserOpHash = (
+  op: UserOperation,
+  entryPoint: string,
+  chainId: number,
+): string => {
   const packed = encodeUserOp(op, true)
-  return keccak256(hexConcat([
-    '0x1901',
-    getDomainSeparator(entryPoint, chainId),
-    keccak256(packed)
-  ]))
+  return keccak256(
+    hexConcat([
+      '0x1901',
+      getDomainSeparator(entryPoint, chainId),
+      keccak256(packed),
+    ]),
+  )
 }
 
 export const DefaultsForUserOp: UserOperation = {
@@ -101,23 +160,34 @@ export const DefaultsForUserOp: UserOperation = {
   paymasterData: '0x',
   paymasterVerificationGasLimit: 3e5,
   paymasterPostOpGasLimit: 0,
-  signature: '0x'
+  signature: '0x',
 }
 
-export function signUserOp (op: UserOperation, signer: Wallet, entryPoint: string, chainId: number): UserOperation {
+export const signUserOp = (
+  op: UserOperation,
+  signer: Wallet,
+  entryPoint: string,
+  chainId: number,
+): UserOperation => {
   const message = getUserOpHash(op, entryPoint, chainId)
 
-  const sig = ecsign(Buffer.from(arrayify(message)), Buffer.from(arrayify(signer.privateKey)))
+  const sig = ecsign(
+    Buffer.from(arrayify(message)),
+    Buffer.from(arrayify(signer.privateKey)),
+  )
   // that's equivalent of:  await signer.signTypedData(domain, types, packUserOp(op));
   // (but without "async")
   const signedMessage1 = toRpcSig(sig.v, sig.r, sig.s)
   return {
     ...op,
-    signature: signedMessage1
+    signature: signedMessage1,
   }
 }
 
-export function fillUserOpDefaults (op: Partial<UserOperation>, defaults = DefaultsForUserOp): UserOperation {
+export const fillUserOpDefaults = (
+  op: Partial<UserOperation>,
+  defaults = DefaultsForUserOp,
+): UserOperation => {
   const partial: any = { ...op }
   // we want "item:undefined" to be used from defaults, and not override defaults, so we must explicitly
   // remove those so "merge" will succeed.
@@ -143,7 +213,11 @@ export function fillUserOpDefaults (op: Partial<UserOperation>, defaults = Defau
 // sender - only in case of construction: fill sender from initCode.
 // callGasLimit: VERY crude estimation (by estimating call to account, and add rough entryPoint overhead
 // verificationGasLimit: hard-code default at 100k. should add "create2" cost
-export async function fillUserOp (op: Partial<UserOperation>, entryPoint?: EntryPoint, getNonceFunction = 'getNonce'): Promise<UserOperation> {
+export const fillUserOp = async (
+  op: Partial<UserOperation>,
+  entryPoint?: EntryPoint,
+  getNonceFunction = 'getNonce',
+): Promise<UserOperation> => {
   const op1 = { ...op }
   const provider = entryPoint?.provider
   if (op.initCode != null) {
@@ -152,14 +226,18 @@ export async function fillUserOp (op: Partial<UserOperation>, entryPoint?: Entry
     if (op1.nonce == null) op1.nonce = 0
     if (op1.sender == null) {
       // hack: if the init contract is our known deployer, then we know what the address would be, without a view call
-      if (initAddr.toLowerCase() === Create2Factory.contractAddress.toLowerCase()) {
+      if (
+        initAddr.toLowerCase() === Create2Factory.contractAddress.toLowerCase()
+      ) {
         const ctr = hexDataSlice(initCallData, 32)
         const salt = hexDataSlice(initCallData, 0, 32)
         op1.sender = Create2Factory.getDeployedAddress(ctr, salt)
       } else {
         // console.log('\t== not our deployer. our=', Create2Factory.contractAddress, 'got', initAddr)
         if (provider == null) throw new Error('no entrypoint/provider')
-        op1.sender = await entryPoint!.callStatic.getSenderAddress(op1.initCode!).catch(e => e.errorArgs.sender)
+        op1.sender = await entryPoint!.callStatic
+          .getSenderAddress(op1.initCode!)
+          .catch((e) => e.errorArgs.sender)
       }
     }
     if (op1.verificationGasLimit == null) {
@@ -169,22 +247,32 @@ export async function fillUserOp (op: Partial<UserOperation>, entryPoint?: Entry
         from: senderCreator,
         to: initAddr,
         data: initCallData,
-        gasLimit: 10e6
+        gasLimit: 10e6,
       })
-      op1.verificationGasLimit = BigNumber.from(DefaultsForUserOp.verificationGasLimit).add(initEstimate)
+      op1.verificationGasLimit = BigNumber.from(
+        DefaultsForUserOp.verificationGasLimit,
+      ).add(initEstimate)
     }
   }
   if (op1.nonce == null) {
-    if (provider == null) throw new Error('must have entryPoint to autofill nonce')
-    const c = new Contract(op.sender!, [`function ${getNonceFunction}() view returns(uint256)`], provider)
+    if (provider == null) {
+      throw new Error('must have entryPoint to autofill nonce')
+    }
+    const c = new Contract(
+      op.sender!,
+      [`function ${getNonceFunction}() view returns(uint256)`],
+      provider,
+    )
     op1.nonce = await c[getNonceFunction]().catch(rethrow())
   }
   if (op1.callGasLimit == null && op.callData != null) {
-    if (provider == null) throw new Error('must have entryPoint for callGasLimit estimate')
+    if (provider == null) {
+      throw new Error('must have entryPoint for callGasLimit estimate')
+    }
     const gasEtimated = await provider.estimateGas({
       from: entryPoint?.address,
       to: op1.sender,
-      data: op1.callData
+      data: op1.callData,
     })
 
     // console.log('estim', op1.sender,'len=', op1.callData!.length, 'res=', gasEtimated)
@@ -193,16 +281,21 @@ export async function fillUserOp (op: Partial<UserOperation>, entryPoint?: Entry
   }
   if (op1.paymaster != null) {
     if (op1.paymasterVerificationGasLimit == null) {
-      op1.paymasterVerificationGasLimit = DefaultsForUserOp.paymasterVerificationGasLimit
+      op1.paymasterVerificationGasLimit =
+        DefaultsForUserOp.paymasterVerificationGasLimit
     }
     if (op1.paymasterPostOpGasLimit == null) {
       op1.paymasterPostOpGasLimit = DefaultsForUserOp.paymasterPostOpGasLimit
     }
   }
   if (op1.maxFeePerGas == null) {
-    if (provider == null) throw new Error('must have entryPoint to autofill maxFeePerGas')
+    if (provider == null) {
+      throw new Error('must have entryPoint to autofill maxFeePerGas')
+    }
     const block = await provider.getBlock('latest')
-    op1.maxFeePerGas = block.baseFeePerGas!.add(op1.maxPriorityFeePerGas ?? DefaultsForUserOp.maxPriorityFeePerGas)
+    op1.maxFeePerGas = block.baseFeePerGas!.add(
+      op1.maxPriorityFeePerGas ?? DefaultsForUserOp.maxPriorityFeePerGas,
+    )
   }
   // TODO: this is exactly what fillUserOp below should do - but it doesn't.
   // adding this manually
@@ -218,34 +311,53 @@ export async function fillUserOp (op: Partial<UserOperation>, entryPoint?: Entry
   return op2
 }
 
-export async function fillAndPack (op: Partial<UserOperation>, entryPoint?: EntryPoint, getNonceFunction = 'getNonce'): Promise<PackedUserOperation> {
+export const fillAndPack = async (
+  op: Partial<UserOperation>,
+  entryPoint?: EntryPoint,
+  getNonceFunction = 'getNonce',
+): Promise<PackedUserOperation> => {
   return packUserOp(await fillUserOp(op, entryPoint, getNonceFunction))
 }
 
-export function getDomainSeparator (entryPoint: string, chainId: number): string {
+export const getDomainSeparator = (
+  entryPoint: string,
+  chainId: number,
+): string => {
   const domainData = getErc4337TypedDataDomain(entryPoint, chainId)
   console.log('data=', domainData)
-  return keccak256(defaultAbiCoder.encode(
-    ['bytes32', 'bytes32', 'bytes32', 'uint256', 'address'],
-    [
-      keccak256(Buffer.from('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')),
-      keccak256(Buffer.from(domainData.name!)),
-      keccak256(Buffer.from(domainData.version!)),
-      domainData.chainId,
-      domainData.verifyingContract
-    ]))
+  return keccak256(
+    defaultAbiCoder.encode(
+      ['bytes32', 'bytes32', 'bytes32', 'uint256', 'address'],
+      [
+        keccak256(
+          Buffer.from(
+            'EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)',
+          ),
+        ),
+        keccak256(Buffer.from(domainData.name!)),
+        keccak256(Buffer.from(domainData.version!)),
+        domainData.chainId,
+        domainData.verifyingContract,
+      ],
+    ),
+  )
 }
 
-export function getErc4337TypedDataDomain (entryPoint: string, chainId: number): TypedDataDomain {
+export const getErc4337TypedDataDomain = (
+  entryPoint: string,
+  chainId: number,
+): TypedDataDomain => {
   return {
     name: DOMAIN_NAME,
     version: DOMAIN_VERSION,
     chainId: chainId,
-    verifyingContract: entryPoint
+    verifyingContract: entryPoint,
   }
 }
 
-export function getErc4337TypedDataTypes (): { [type: string]: TypedDataField[] } {
+export const getErc4337TypedDataTypes = (): {
+  [type: string]: TypedDataField[]
+} => {
   return {
     PackedUserOperation: [
       { name: 'sender', type: 'address' },
@@ -255,30 +367,49 @@ export function getErc4337TypedDataTypes (): { [type: string]: TypedDataField[] 
       { name: 'accountGasLimits', type: 'bytes32' },
       { name: 'preVerificationGas', type: 'uint256' },
       { name: 'gasFees', type: 'bytes32' },
-      { name: 'paymasterAndData', type: 'bytes' }
-    ]
+      { name: 'paymasterAndData', type: 'bytes' },
+    ],
   }
 }
-export async function fillAndSign (op: Partial<UserOperation>, signer: Wallet | Signer, entryPoint?: EntryPoint, getNonceFunction = 'getNonce'): Promise<UserOperation> {
+export const fillAndSign = async (
+  op: Partial<UserOperation>,
+  signer: Wallet | Signer,
+  entryPoint?: EntryPoint,
+  getNonceFunction = 'getNonce',
+): Promise<UserOperation> => {
   const provider = entryPoint?.provider
   const op2 = await fillUserOp(op, entryPoint, getNonceFunction)
 
-  const chainId = await provider!.getNetwork().then(net => net.chainId)
+  const chainId = await provider!.getNetwork().then((net) => net.chainId)
 
   const typedSigner: TypedDataSigner = signer as any
 
   const packedUserOp = packUserOp(op2)
 
-  const signature = await typedSigner._signTypedData(getErc4337TypedDataDomain(entryPoint!.address, chainId), getErc4337TypedDataTypes(), packedUserOp) // .catch(e => e.toString())
+  const signature = await typedSigner._signTypedData(
+    getErc4337TypedDataDomain(entryPoint!.address, chainId),
+    getErc4337TypedDataTypes(),
+    packedUserOp,
+  ) // .catch(e => e.toString())
 
   return {
     ...op2,
-    signature
+    signature,
   }
 }
 
-export async function fillSignAndPack (op: Partial<UserOperation>, signer: Wallet | Signer, entryPoint?: EntryPoint, getNonceFunction = 'getNonce'): Promise<PackedUserOperation> {
-  const filledAndSignedOp = await fillAndSign(op, signer, entryPoint, getNonceFunction)
+export const fillSignAndPack = async (
+  op: Partial<UserOperation>,
+  signer: Wallet | Signer,
+  entryPoint?: EntryPoint,
+  getNonceFunction = 'getNonce',
+): Promise<PackedUserOperation> => {
+  const filledAndSignedOp = await fillAndSign(
+    op,
+    signer,
+    entryPoint,
+    getNonceFunction,
+  )
   return packUserOp(filledAndSignedOp)
 }
 
@@ -289,32 +420,45 @@ export async function fillSignAndPack (op: Partial<UserOperation>, signer: Walle
  * @param entryPointAddress
  * @param txOverrides
  */
-export async function simulateValidation (
+export const simulateValidation = async (
   userOp: PackedUserOperation,
   entryPointAddress: string,
-  txOverrides?: any): Promise<IEntryPointSimulations.ValidationResultStructOutput> {
+  txOverrides?: any,
+): Promise<IEntryPointSimulations.ValidationResultStructOutput> => {
   const entryPointSimulations = EntryPointSimulations__factory.createInterface()
-  const data = entryPointSimulations.encodeFunctionData('simulateValidation', [userOp])
+  const data = entryPointSimulations.encodeFunctionData('simulateValidation', [
+    userOp,
+  ])
   const tx: TransactionRequest = {
     to: entryPointAddress,
     data,
-    ...txOverrides
+    ...txOverrides,
   }
   const stateOverride = {
     [entryPointAddress]: {
-      code: EntryPointSimulationsJson.deployedBytecode
-    }
+      code: EntryPointSimulationsJson.deployedBytecode,
+    },
   }
   try {
-    const simulationResult = await ethers.provider.send('eth_call', [tx, 'latest', stateOverride])
-    const res = entryPointSimulations.decodeFunctionResult('simulateValidation', simulationResult)
+    const simulationResult = await ethers.provider.send('eth_call', [
+      tx,
+      'latest',
+      stateOverride,
+    ])
+    const res = entryPointSimulations.decodeFunctionResult(
+      'simulateValidation',
+      simulationResult,
+    )
     // note: here collapsing the returned "tuple of one" into a single value - will break for returning actual tuples
     return res[0]
   } catch (error: any) {
     const revertData = error?.data
     if (revertData != null) {
       // note: this line throws the revert reason instead of returning it
-      entryPointSimulations.decodeFunctionResult('simulateValidation', revertData)
+      entryPointSimulations.decodeFunctionResult(
+        'simulateValidation',
+        revertData,
+      )
     }
     throw error
   }
@@ -322,27 +466,39 @@ export async function simulateValidation (
 
 // TODO: this code is very much duplicated but "encodeFunctionData" is based on 20 overloads
 //  TypeScript is not able to resolve overloads with variables: https://github.com/microsoft/TypeScript/issues/14107
-export async function simulateHandleOp (
+export const simulateHandleOp = async (
   userOp: PackedUserOperation,
   target: string,
   targetCallData: string,
   entryPointAddress: string,
-  txOverrides?: any): Promise<IEntryPointSimulations.ExecutionResultStructOutput> {
+  txOverrides?: any,
+): Promise<IEntryPointSimulations.ExecutionResultStructOutput> => {
   const entryPointSimulations = EntryPointSimulations__factory.createInterface()
-  const data = entryPointSimulations.encodeFunctionData('simulateHandleOp', [userOp, target, targetCallData])
+  const data = entryPointSimulations.encodeFunctionData('simulateHandleOp', [
+    userOp,
+    target,
+    targetCallData,
+  ])
   const tx: TransactionRequest = {
     to: entryPointAddress,
     data,
-    ...txOverrides
+    ...txOverrides,
   }
   const stateOverride = {
     [entryPointAddress]: {
-      code: EntryPointSimulationsJson.deployedBytecode
-    }
+      code: EntryPointSimulationsJson.deployedBytecode,
+    },
   }
   try {
-    const simulationResult = await ethers.provider.send('eth_call', [tx, 'latest', stateOverride])
-    const res = entryPointSimulations.decodeFunctionResult('simulateHandleOp', simulationResult)
+    const simulationResult = await ethers.provider.send('eth_call', [
+      tx,
+      'latest',
+      stateOverride,
+    ])
+    const res = entryPointSimulations.decodeFunctionResult(
+      'simulateHandleOp',
+      simulationResult,
+    )
     // note: here collapsing the returned "tuple of one" into a single value - will break for returning actual tuples
     return res[0]
   } catch (error: any) {

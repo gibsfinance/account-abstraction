@@ -16,11 +16,19 @@ export interface DebugTransactionResult {
   structLogs: DebugLog[]
 }
 
-export async function debugTransaction (txHash: string, disableMemory = true, disableStorage = true): Promise<DebugTransactionResult> {
-  const debugTx = async (hash: string): Promise<DebugTransactionResult> => await ethers.provider.send('debug_traceTransaction', [hash, {
-    disableMemory,
-    disableStorage
-  }])
+export const debugTransaction = async (
+  txHash: string,
+  disableMemory = true,
+  disableStorage = true,
+): Promise<DebugTransactionResult> => {
+  const debugTx = async (hash: string): Promise<DebugTransactionResult> =>
+    await ethers.provider.send('debug_traceTransaction', [
+      hash,
+      {
+        disableMemory,
+        disableStorage,
+      },
+    ])
 
   return await debugTx(txHash)
 }
