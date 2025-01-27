@@ -72,10 +72,11 @@ describe('EntryPointSimulations', function () {
     // regardless of "environment" parameters (like gaslimit)
     const addr = createAddress()
 
-    // coverage skews gas checks.
-    if (process.env.COVERAGE != null) {
-      return
-    }
+    beforeEach(async function () {
+      if (process.env.COVERAGE != null) {
+        this.skip()
+      }
+    })
 
     const costInRange = (
       simCost: BigNumber,
@@ -374,9 +375,12 @@ describe('EntryPointSimulations', function () {
   for (const withPaymaster of ['with', 'without']) {
     describe(`over-validation test ${withPaymaster} paymaster`, () => {
       // coverage skews gas checks.
-      if (process.env.COVERAGE != null) {
-        return
-      }
+
+      beforeEach(async function () {
+        if (process.env.COVERAGE != null) {
+          this.skip()
+        }
+      })
 
       let vgl: number
       let pmVgl: number

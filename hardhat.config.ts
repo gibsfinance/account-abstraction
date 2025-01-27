@@ -45,7 +45,7 @@ const optimizedCompilerSettings = {
   version: '0.8.28',
   settings: {
     evmVersion: 'cancun',
-    optimizer: { enabled: true, runs: 1000000 },
+    optimizer: { enabled: true, runs: 1_000_000 },
     viaIR: true,
   },
 }
@@ -78,9 +78,10 @@ const config: HardhatUserConfig = {
     goerli: getNetwork('goerli'),
     sepolia: getNetwork('sepolia'),
     proxy: getNetwork1('http://localhost:8545'),
+    external: getNetwork1(process.env.RPC_URL ?? 'http://localhost:8545'),
   },
   mocha: {
-    timeout: 10000,
+    timeout: 10_000,
   },
   // @ts-ignore
   etherscan: {

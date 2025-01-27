@@ -8,11 +8,11 @@ describe('test Create2Factory', () => {
   let factory: Create2Factory
   let provider: providers.Provider
 
-  if (process.env.COVERAGE != null) {
-    return
-  }
+  before(async function () {
+    if (process.env.COVERAGE != null) {
+      this.skip()
+    }
 
-  before(async () => {
     provider = ethers.provider
     factory = new Create2Factory(provider)
   })

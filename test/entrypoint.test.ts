@@ -831,7 +831,7 @@ describe('EntryPoint', function () {
 
       it('account should pay for high gas usage tx', async function () {
         if (process.env.COVERAGE != null) {
-          return
+          this.skip()
         }
         const iterations = 45
         const count = await counter.populateTransaction.gasWaster(
@@ -936,7 +936,7 @@ describe('EntryPoint', function () {
 
       it('account should pay a penalty for requiring too much gas and leaving it unused', async function () {
         if (process.env.COVERAGE != null) {
-          return
+          this.skip()
         }
         const iterations = 10
         const count = await counter.populateTransaction.gasWaster(
@@ -1373,9 +1373,14 @@ describe('EntryPoint', function () {
 
     describe('batch multiple requests', function () {
       this.timeout(20000)
-      if (process.env.COVERAGE != null) {
-        return
+      async function beforeEachCheck(t: Mocha.Test): Promise<void> {
+        if (process.env.COVERAGE != null) {
+          t.skip()
+        }
       }
+      beforeEach(async function () {
+        await beforeEachCheck(this as any)
+      })
       /**
        * attempt a batch:
        * 1. create account1 + "initialize" (by calling counter.count())
@@ -1390,7 +1395,8 @@ describe('EntryPoint', function () {
       const accountOwner2 = createAccountOwner()
       let account2: SimpleAccount
 
-      before('before', async () => {
+      before(async function () {
+        await beforeEachCheck(this as any)
         counter = await new TestCounter__factory(ethersSigner).deploy()
         const count = await counter.populateTransaction.count()
         accountExecCounterFromEntryPoint =
@@ -1974,7 +1980,7 @@ describe('EntryPoint', function () {
       let account: TestExpiryAccount
       let now: number
       let sessionOwner: Wallet
-      before('init account with session key', async () => {
+      before(async () => {
         // create a test account. The primary owner is the global ethersSigner, so that we can easily add a temporaryOwner, below
         account = await new TestExpiryAccount__factory(ethersSigner).deploy(
           entryPoint.address,
@@ -2032,7 +2038,7 @@ describe('EntryPoint', function () {
       describe('validatePaymasterUserOp with deadline', function () {
         let paymaster: TestExpirePaymaster
         let now: number
-        before('init account with session key', async function () {
+        before(async function () {
           this.timeout(20000)
           paymaster = await new TestExpirePaymaster__factory(
             ethersSigner,
