@@ -18,9 +18,9 @@ task('deploy', 'Deploy contracts').addFlag(
 )
 
 const mnemonicFileName = process.env.MNEMONIC_FILE!
-let mnemonic = 'test '.repeat(11) + 'junk'
+let mnemonic = process.env.MNEMONIC ?? 'test '.repeat(11) + 'junk'
 if (fs.existsSync(mnemonicFileName)) {
-  mnemonic = fs.readFileSync(mnemonicFileName, 'ascii')
+  mnemonic = fs.readFileSync(mnemonicFileName, 'ascii').trim()
 }
 
 function getNetwork1(url: string): {
